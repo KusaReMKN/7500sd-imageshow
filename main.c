@@ -42,19 +42,15 @@ void vga_init() {  // 640x480x256 color
 	(void)outpw(VGA_GR_REG, 0x0106);
 }
 
+void vga_exit() { 
 	// attribute registers
-	CLI();
-	attr_write(16, 0x41);
+	attr_write(0x10, 0x20);
 	attrindex_write(0x20);
 	// sequencer register
-	(void)outpw(IOP_03C4, 0x0C04);
-	(void)outpw(IOP_03C4, 0x0F02);
+	(void)outpw(VGA_SEQ_REG, 0x0404);
 	// graphics control
-	(void)outpw(IOP_03CE, 0x0001);
-	(void)outpw(IOP_03CE, 0x4005);
-	(void)outpw(IOP_03CE, 0x0106);
-	// crt control	
-	(void)outpw(IOP_03D4, 0x0011);
+	(void)outpw(VGA_GR_REG, 0x0305);
+	(void)outpw(VGA_GR_REG, 0x0506);
 }
 
 int main() {
@@ -91,6 +87,10 @@ int main() {
 	regs.w.ax = 0x1B8A;
 	(void)int86(0x91, &regs, &regs);
 
+	// cursor erase
+	regs.w.ax = 0x0B01;
+	(void)int86(0x91, &regs, &regs);
+
 	CLI();
 	vga_init();
 	(void)outp(VGA_PEL_REG, 0xFF);
@@ -107,21 +107,35 @@ int main() {
 	STI();
 
 	for (j = 0; j < 3;j++){
-	// more vram window
+		// more vram window
 		(void)outpw(VGA_SEQ_REG, 0x0106);
 		(void)outpw(VGA_SEQ_REG, 0x0108 | j << 12);
 		(void)outpw(VGA_SEQ_REG, 0x0006);
 		for (k = 0; k < 4;k++){
 			(void)outpw(IOP_FF0A, 0x40 * (k>>1));
 			fread(pic, 1, 0x8000, img);
-	for (i = 0; i < 0x8000;i++) {
+			for (i = 0; i < 0x8000;i++) {
 				VRAM_WIN[k*0x8000+i] = pic[i];
-	}
+			}
 		}
 	}
 	fclose(img);
 
-	while(1)
-          ;
-        return 0;
+    (void)getch();
+
+    // restore VGA mode
+	(void)outpw(VGA_SEQ_REG, 0x0106);
+	(void)outpw(VGA_SEQ_REG, 0x0f08 | j << 12);
+	(void)outpw(VGA_SEQ_REG, 0x0006);
+
+	vga_exit();
+
+	// system row disp
+	regs.w.ax = 0x1BCA;
+	(void)int86(0x91, &regs, &regs);
+
+	// cursor disp
+	regs.w.ax = 0x0B00;
+	(void)int86(0x91, &regs, &regs);
+    return 0;
 }
